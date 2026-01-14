@@ -10,24 +10,18 @@
 #include "patterns.h"
 #include "pico/stdlib.h"
 #include "hardware/clocks.h"
-#include "led-controller.h"
 #include "button.h"
+#include "led-controller.h"
+#include "color-test.h"
+#include "airled.pio.h"
 
 #define WS2812_PIN 1
 #define BUTTON_PIN 27
 #define IS_RGBW true
 #define NUM_PIXELS 60
 
+// Global LED controller
 static led_controller_t led_controller;
-static button_t button;
-#if WS2812_PIN >= NUM_BANK0_GPIOS
-#error Attempting to use a pin>=32 on a platform that does not support it
-#endif
-
-void button_pressed_callback(void) {
-    printf("Button pressed callback invoked. Toggling white intensity.\n");
-    toggle_white_intensity();
-}
 
 int main() {
     stdio_init_all();
@@ -45,9 +39,9 @@ int main() {
     printf("Waited %d ms for USB serial connection\n", waited);
     printf("WS2812 Smoke Test, using pin %d\n", WS2812_PIN);
 
-    printf("About to setup plane patterns...\n");
-    setup_plane();
-    printf("Plane patterns setup completed\n");
+    printf("About to initialize button...\n");
+    button_init(BUTTON_PIN);
+    printf("Button initialized successfully\n");
 
     printf("About to initialize LED controller...\n");
     if (!led_controller_init(&led_controller, WS2812_PIN, 800000, IS_RGBW)) {
@@ -59,28 +53,26 @@ int main() {
     }
     printf("LED controller initialization completed\n");
 
-    printf("Starting pattern display loop...\n");
+    printf("About to initialize color test...\n");
+    color_test_init();
+    printf("Color test initialized\n");
 
-    button_init(&button, BUTTON_PIN);
-    button_set_callback(&button, button_pressed_callback);
+    button_set_callback(color_test_advance_phase);
+    printf("Channel mapping test enabled. Press button to cycle through R, G, B, W, OFF.\n");
 
+    // Main loop
     int t = 0;
+    printf("Starting button-controlled channel mapping test...\n");
+    printf("Press button to cycle: RED -> GREEN -> BLUE -> WHITE -> OFF -> RED...\n");
+
     while (1) {
-        int pat = rand() % pattern_table_size;
-        int dir = (rand() >> 30) & 1 ? 1 : -1;
-        printf("Selected pattern: %s %s\n", pattern_table[pat].name,
-               dir == 1 ? "(forward)" : "(backward)");
+        button_check_state(t, "channel test");
+        color_test_run(&led_controller, NUM_PIXELS);
+        sleep_ms(50);
+        t++;
 
-        for (int i = 0; i < 1000; ++i) {
-            //pattern_table[pat].pat(led_controller.pio, led_controller.sm, NUM_PIXELS, t);
-            pattern_single_wing_plane(led_controller.pio, led_controller.sm, NUM_PIXELS, t);
-            button_check_state(&button, t, "Main Loop");
-            sleep_ms(150);
-            t += dir;
-
-            if (i % 34 == 0) {
-                printf("Pattern heartbeat: %s, t=%d\n", pattern_table[pat].name, t);
-            }
+        if (t % 100 == 0) {
+            printf("Heartbeat: t=%d\n", t);
         }
     }
 

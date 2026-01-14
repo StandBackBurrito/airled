@@ -46,7 +46,13 @@ pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/airled.pio OU
 pico_enable_stdio_uart(${PROJECT_NAME} 0)
 pico_enable_stdio_usb(${PROJECT_NAME} 1)
 
-target_sources(${PROJECT_NAME} PRIVATE airled.c ws2812.c patterns.c)
+target_sources(${PROJECT_NAME} PRIVATE
+    airled.c
+    ws2812.c
+    patterns.c
+    button.c
+    led-controller.c
+)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE pico_stdlib hardware_pio)
 pico_add_extra_outputs(${PROJECT_NAME})
