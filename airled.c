@@ -63,6 +63,8 @@ int main() {
 
     button_init(&button, BUTTON_PIN);
     button_set_callback(&button, button_pressed_callback);
+    button_enable_interrupts(&button);
+    printf("Button initialized and callback set.\n");
 
     int t = 0;
     while (1) {
@@ -74,7 +76,6 @@ int main() {
         for (int i = 0; i < 1000; ++i) {
             //pattern_table[pat].pat(led_controller.pio, led_controller.sm, NUM_PIXELS, t);
             pattern_single_wing_plane(led_controller.pio, led_controller.sm, NUM_PIXELS, t);
-            button_check_state(&button, t, "Main Loop");
             sleep_ms(150);
             t += dir;
 
