@@ -50,11 +50,12 @@ target_sources(${PROJECT_NAME} PRIVATE
     airled.c
     ws2812.c
     patterns.c
+    wing_plane.c
     button.c
     led-controller.c
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE pico_stdlib hardware_pio)
+target_link_libraries(${PROJECT_NAME} PRIVATE pico_stdlib hardware_pio hardware_dma)
 pico_add_extra_outputs(${PROJECT_NAME})
 
 # Additionally generate python and hex pioasm outputs for inclusion in the RP2040 datasheet

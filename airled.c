@@ -8,6 +8,7 @@
 #include <stdlib.h>
 
 #include "patterns.h"
+#include "wing_plane.h"
 #include "pico/stdlib.h"
 #include "hardware/clocks.h"
 #include "led-controller.h"
@@ -17,6 +18,8 @@
 #define BUTTON_PIN 27
 #define IS_RGBW true
 #define NUM_PIXELS 60
+#define PIXEL_DENSITY_M 60
+#define BEACON_SIZE_MM 110
 
 static led_controller_t led_controller;
 static button_t button;
@@ -26,7 +29,7 @@ static button_t button;
 
 void button_pressed_callback(void) {
     printf("Button pressed callback invoked. Toggling white intensity.\n");
-    toggle_white_intensity();
+    wing_plane_toggle_white_intensity(&wing_plane);
 }
 
 int main() {
@@ -46,11 +49,11 @@ int main() {
     printf("WS2812 Smoke Test, using pin %d\n", WS2812_PIN);
 
     printf("About to setup plane patterns...\n");
-    setup_plane();
+    wing_plane_init(&wing_plane, NUM_PIXELS, PIXEL_DENSITY_M, BEACON_SIZE_MM);
     printf("Plane patterns setup completed\n");
 
     printf("About to initialize LED controller...\n");
-    if (!led_controller_init(&led_controller, WS2812_PIN, 800000, IS_RGBW)) {
+    if (!led_controller_init(&led_controller, WS2812_PIN, 800000, IS_RGBW, false, NUM_PIXELS)) {
         printf("Failed to initialize LED controller. System halted.\n");
         while (1) {
             printf("LED initialization failed. System halted.\n");
@@ -75,7 +78,7 @@ int main() {
 
         for (int i = 0; i < 1000; ++i) {
             //pattern_table[pat].pat(led_controller.pio, led_controller.sm, NUM_PIXELS, t);
-            pattern_single_wing_plane(led_controller.pio, led_controller.sm, NUM_PIXELS, t);
+            pattern_single_wing_plane(&led_controller, t);
             sleep_ms(150);
             t += dir;
 
