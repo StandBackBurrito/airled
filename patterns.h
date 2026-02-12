@@ -3,6 +3,7 @@
 
 #include "ws2812.h"
 #include "wing_plane.h"
+#include "led-controller.h"
 
 void toggle_white_intensity(void);
 void pattern_snakes(led_controller_t* controller, uint t);
@@ -20,13 +21,6 @@ typedef struct {
     int beaconPosition; // index of first beacon pixel
     int whiteIntensity; // white LED intensity (0-255)
 } led_strip;
-
-typedef void (*pattern_func)(led_controller_t* controller, uint t);
-
-typedef struct {
-    pattern_func pat;
-    const char *name;
-} pattern;
 
 extern const pattern pattern_table[];
 extern const int pattern_table_size;

@@ -3,7 +3,7 @@
 #include "ws2812.h"
 #include <stdio.h>
 
-bool led_controller_init(led_controller_t* controller, uint pin, uint32_t freq, bool is_rgbw, bool buffered, uint num_pixels) {
+bool led_controller_init(led_controller_t* controller, uint pin, uint32_t freq, bool is_rgbw, bool buffered, uint num_pixels, uint num_patterns) {
     if (!controller) {
         return false;
     }
@@ -15,6 +15,7 @@ bool led_controller_init(led_controller_t* controller, uint pin, uint32_t freq, 
     controller->is_initialized = false;
     controller->is_buffered = buffered;
     controller->num_pixels = num_pixels;
+    controller->num_patterns = num_patterns;
 
     // This will find a free pio and state machine for our program and load it for us
     bool success = pio_claim_free_sm_and_add_program_for_gpio_range(
@@ -37,16 +38,28 @@ bool led_controller_init(led_controller_t* controller, uint pin, uint32_t freq, 
            controller->pio, controller->pio_sm, controller->pio_offset);
 
     if (buffered) {
-        controller->buffer_one = malloc(sizeof(uint32_t) * num_pixels);
-        controller->buffer_two = malloc(sizeof(uint32_t) * num_pixels);
+        size_t string_size = sizeof(uint32_t) * num_pixels;
+        size_t buffer_size = sizeof(uint32_t) * num_pixels * num_patterns;
+        controller->num_buffers = (buffer_size <= MAX_ALLOCATABLE_BUFFER_SIZE)
+            ? num_patterns
+            : (MAX_ALLOCATABLE_BUFFER_SIZE / num_pixels) * num_pixels;
 
-        if (!controller->buffer_one || !controller->buffer_two) {
+        controller->buffer = malloc(sizeof(uint32_t*) * controller->num_buffers);
+        for (uint i = 0; i < controller->num_buffers; ++i) {
+            controller->buffer[i] = malloc(string_size);
+            if (!controller->buffer[i]) {
+                printf("ERROR: Failed to allocate memory for LED buffer %d!\n", i);
+                return false;
+            }
+        }
+
+        if (!controller->buffer) {
             printf("ERROR: Failed to allocate memory for LED buffers!\n");
             return false;
         }
 
         controller->current_buffer_index = 0;
-        controller->current_buffer = controller->buffer_one;
+        controller->current_buffer = 0;
 
         int dma_channel = dma_claim_unused_channel(true);
         if (dma_channel < 0) {
@@ -64,16 +77,16 @@ bool led_controller_init(led_controller_t* controller, uint pin, uint32_t freq, 
         dma_channel_configure(
             dma_channel,
             &cfg,
-            &controller->pio->txf[controller->pio_sm], // write address (PIO TX FIFO)
-            controller->current_buffer,             // read address (LED buffer)
-            num_pixels,                             // number of transfers
-            false                                   // don't start yet
+            &controller->pio->txf[controller->pio_sm],
+            controller->buffer[controller->current_buffer],
+            num_pixels,
+            false
         );
     }
 
-    // Initialize the LED program
     airled_program_init(controller->pio, controller->pio_sm, controller->pio_offset, pin, freq, is_rgbw);
     controller->is_initialized = true;
+    controller->needs_pattern_update = true;
 
     printf("LED controller initialized successfully.\n");
     return true;
@@ -85,7 +98,8 @@ void led_controller_set_pixel(led_controller_t* controller, uint32_t color) {
     }
 
     if (controller->is_buffered) {
-        controller->current_buffer[controller->current_buffer_index++] = color;
+        controller->buffer[controller->current_buffer][controller->current_buffer_index++]
+        = color;
         if (controller->current_buffer_index >= controller->num_pixels) {
             led_controller_flush_buffer(controller);
         }
@@ -110,14 +124,11 @@ void led_controller_flush_buffer(led_controller_t* controller) {
     }
 
     for (uint i = 0; i < controller->current_buffer_index; ++i) {
-        put_pixel(controller->pio, controller->pio_sm, controller->current_buffer[i]);
+        put_pixel(controller->pio, controller->pio_sm, controller->buffer[controller->current_buffer][i]);
     }
 
-    // Swap buffers
     controller->current_buffer_index = 0;
-    controller->current_buffer = (controller->current_buffer == controller->buffer_one)
-        ? controller->buffer_two
-        : controller->buffer_one;
+    controller->current_buffer = (controller->current_buffer + 1) % controller->num_buffers;
 }
 
 void led_controller_cleanup(led_controller_t* controller) {
